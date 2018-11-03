@@ -1,6 +1,10 @@
 #define ALARM_CALLERID    "22145533"
+#define STATUS_SMS_TIME   ((long)(10L * 3600L + 0 * 60 + 0))
 
 
+
+
+//#define DEBUG   1
 
 // --- Includes ---
 #include <stdint.h>
@@ -13,7 +17,7 @@
 
 #include "LowPower.h"
 
-#include <EEPROM.h>
+//#include <EEPROM.h>
 
 
 #include <Wire.h>
@@ -33,8 +37,8 @@ Adafruit_LIS3DH lis = Adafruit_LIS3DH();
 #define FONA_PWR  9
 
 
-char replybuffer[255];
-char fonaNotificationBuffer[64];          //for notifications from the FONA
+//char replybuffer[255];
+//char fonaNotificationBuffer[64];          //for notifications from the FONA
 char smsBuffer[250];
 
 #include <SoftwareSerial.h>
@@ -60,6 +64,11 @@ bool battery_alarm = false;
 long status_time_cnt = 0;
 
 long uptime = 0;
+
+int surface_state;
+int wire_state;
+
+long sms_cooldown = 0;
 
 
 void wakeUp()
@@ -102,41 +111,63 @@ void setup() {
   Accelometer_check();
 
 
+  if (Phone_On()) {
+    Serial.println(F("GSM OK!"));
+    delay(1000);
 
+    status_time_cnt = Time_sync();
+
+  } else {
+    Serial.println(F("Error: Failed to start GSM!"));
+  }
+
+  delay(100);
+  Phone_Off();
 }
 
 void loop() {
-  //  Serial.print("t:");
-  //  Serial.print(temperature_read());
-  //  Serial.print(", b:");
-  //  Serial.println(battery_read());
-  //  delay(10);
 
-
-  surface_alarm = Surface_check();
-  wire_alarm = Wire_check();
+  surface_alarm |= Surface_check();
+  wire_alarm |= Wire_check();
   accelo_alarm = Accelometer_check();
 
 
   if (surface_alarm) {
-    Serial.println("NOT ON SURFACE!!!");
+#ifdef DEBUG
+    Serial.println(F("NOT ON SURFACE!!!"));
     delay(10);
+#endif
 
-    Phone_sendMessage(ALARM_CALLERID, "NOT ON SURFACE!!!");
+    if (sms_cooldown == 0) {
+      if (Phone_sendMessage(ALARM_CALLERID, "NOT ON SURFACE!!!") == true)
+        surface_alarm = false;
+      sms_cooldown = 40;
+    }
   }
 
   if (wire_alarm) {
-    Serial.println("WIRE CUT!!!");
+#ifdef DEBUG
+    Serial.println(F("WIRE CUT!!!"));
     delay(10);
+#endif
 
-    Phone_sendMessage(ALARM_CALLERID, "WIRE CUT!!!");
+    if (sms_cooldown == 0) {
+      if (Phone_sendMessage(ALARM_CALLERID, "WIRE CUT!!!") == true)
+        wire_alarm = 0;
+      sms_cooldown = 40;
+    }
   }
 
   if (accelo_alarm) {
-    Serial.println("DEVICE MOVED!!!");
+#ifdef DEBUG
+    Serial.println(F("DEVICE MOVED!!!"));
     delay(10);
+#endif
 
-     Phone_sendMessage(ALARM_CALLERID, "DEVICE MOVED!!!");
+    if (sms_cooldown == 0) {
+      Phone_sendMessage(ALARM_CALLERID, "DEVICE MOVED!!!");
+      sms_cooldown = 40;
+    }
   }
 
 
@@ -144,13 +175,31 @@ void loop() {
   /* -------
       Send Status every 24h
   */
-  status_time_cnt++;
-  if (status_time_cnt >= (24 * 3600 / 8)) {
-    status_time_cnt == 0;
 
-    snprintf(smsBuffer, sizeof(smsBuffer), "I'm OK. Status:\nbat: %dmV\ntemp: %d*C\nuptime: %ldh",
-             battery_read(), temperature_read(), uptime);
-    Phone_sendMessage(ALARM_CALLERID, smsBuffer);
+  if (sms_cooldown > 0)
+    sms_cooldown--;
+
+  status_time_cnt--;
+  if (status_time_cnt <= 0) {
+    uptime++;
+
+    snprintf(smsBuffer, sizeof(smsBuffer), "I'm OK!\nBattery: %dmV\nUptime: %ld days\nWire: %s\nSurface: %s",
+             battery_read(), uptime, wire_state == 0 ? "OK" : "Cut", surface_state == 1 ? "On" : "Off");
+
+    if (Phone_On()) {
+      Serial.println(F("GSM OK!"));
+      delay(1000);
+
+      status_time_cnt = Time_sync();
+
+      Sms_send(ALARM_CALLERID, smsBuffer);
+
+    } else {
+      Serial.println(F("Error: Failed to start GSM!"));
+    }
+
+    delay(100);
+    Phone_Off();
   }
 
 

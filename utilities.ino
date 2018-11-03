@@ -158,6 +158,8 @@ void accelo_read(void)
 
 
 
+
+
 bool Accelometer_check(void)
 {
   static int x, y, z;
@@ -177,9 +179,10 @@ bool Accelometer_check(void)
   return false;
 }
 
+
 bool Surface_check(void)
 {
-  static int surface_state;
+  //  static int surface_state;
   int new_state = digitalRead(SURFACE_PIN);
   bool result = false;
 
@@ -192,8 +195,10 @@ bool Surface_check(void)
   return result;
 }
 
+
+
 bool Wire_check(void) {
-  static int wire_state;
+  //  static int wire_state;
   int x = 0;
   bool result = false;
 
@@ -250,31 +255,96 @@ void Phone_Off(void)
 }
 
 
-void Sms_send(char* callerId, char* content)
+bool Sms_send(char* callerId, char* content)
 {
   if (!fona.sendSMS(callerId, content)) {
     Serial.println(F("Failed"));
+    return false;
   } else {
     Serial.println(F("Sent!"));
+    return true;
   }
 }
 
 
-
-void Phone_sendMessage(char* callerId, char* message)
+long Phone_getTime(void)
 {
+  char buf[32];
+  bool result;
+
+  fona.getTime(buf, sizeof(buf));
+
+  int h = (buf[10] - '0') * 10 + (buf[11] - '0');
+  int m = (buf[13] - '0') * 10 + (buf[14] - '0');
+  int s = (buf[16] - '0') * 10 + (buf[17] - '0');
+
+  if (h > 23 || m > 59 || s > 59)
+    return false;
+
+#ifdef DEBUG
+  Serial.print(h);
+  Serial.print(":");
+  Serial.print(m);
+  Serial.print(":");
+  Serial.println(s);
+#endif
+
+  long t = h * 3600 + m * 60 + s;
+
+  return t;
+}
+
+
+long Time_sync(void)
+{
+  long t = Phone_getTime();
+  long period_cnt = 0;
+  //
+  //  Serial.print(F("Set time: "));
+  //  Serial.println(STATUS_SMS_TIME);
+  //  Serial.print(F("Time: "));
+  //  Serial.println(t);
+
+  if (t < STATUS_SMS_TIME) {
+    if ((STATUS_SMS_TIME - t) < 3600) {
+      period_cnt = (86400 +  (STATUS_SMS_TIME - t)) / 8;
+    } else {
+      period_cnt = (STATUS_SMS_TIME - t) / 8;
+    }
+  } else {
+    period_cnt = ((86400 - t) + STATUS_SMS_TIME) / 8;
+  }
+
+#ifdef DEBUG
+  Serial.print(F("Next time after 8s period: "));
+  Serial.println(period_cnt * 8);
+#endif
+
+  return period_cnt;
+}
+
+// h*3600 + m*60 + s
+
+
+bool Phone_sendMessage(char* callerId, char* message)
+{
+  bool result = false;
+
   if (Phone_On()) {
-    Serial.println("GSM OK!");
+    Serial.println(F("GSM OK!"));
     delay(1000);
 
-    Sms_send(callerId, message);
+    result = Sms_send(callerId, message);
 
   } else {
-    Serial.println("Error: Failed to start GSM!");
+    Serial.println(F("Error: Failed to start GSM!"));
+    result = false;
   }
 
   delay(100);
   Phone_Off();
+
+  return result;
 }
 
 
