@@ -8,114 +8,154 @@
 #include <avr/sleep.h>
 #include <avr/power.h>
 
+#include "LowPower.h"
+
 #include <EEPROM.h>
 
 
-#include <Adafruit_FONA.h>
+#include <Wire.h>
+#include <SPI.h>
 #include <Adafruit_LIS3DH.h>
+#include <Adafruit_Sensor.h>
+
+Adafruit_LIS3DH lis = Adafruit_LIS3DH();
 
 
 
-#define FONA_RX 3
-#define FONA_TX 4
-#define FONA_RST 5
+#include <Adafruit_FONA.h>
+
+#define FONA_RX   11
+#define FONA_TX   10
+#define FONA_RST  12
+#define FONA_PWR  9
+
 
 char replybuffer[255];
 char fonaNotificationBuffer[64];          //for notifications from the FONA
 char smsBuffer[250];
 
-// --- For testing reasons software serial
 #include <SoftwareSerial.h>
 SoftwareSerial fonaSS = SoftwareSerial(FONA_TX, FONA_RX);
 SoftwareSerial *fonaSerial = &fonaSS;
-//  HardwareSerial *fonaSerial = &Serial1;
 
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
-// Accelerometer sensor
-//Adafruit_LIS3DH lis = Adafruit_LIS3DH();
+
+#define SURFACE_PIN   2
+
+#define WIRE_IN_PIN   3
+#define WIRE_OUT_PIN  4
+
+
+bool accelo_alarm = false;
+bool wire_alarm = false;
+bool surface_alarm = false;
+bool battery_alarm = false;
+
+
+
+long status_time_cnt = 0;
+
+
+void wakeUp()
+{
+  surface_alarm = true;
+  detachInterrupt(0);
+}
 
 
 void setup() {
   Serial.begin(115200);
   Serial.println("GSM Alarm");
 
-  sleep_init();
 
-  if(gsm_init()) {
-    Serial.println("GSM: OK");
-  } else {
-    Serial.println("GSM: failed init");
+  pinMode(13, OUTPUT);
+
+  pinMode(FONA_PWR, OUTPUT);
+  digitalWrite(FONA_PWR, 0);
+
+  pinMode(FONA_RX, INPUT);
+  pinMode(FONA_TX, INPUT);
+  pinMode(FONA_RST, INPUT);
+
+  pinMode(SURFACE_PIN, INPUT);
+
+  pinMode(WIRE_IN_PIN, INPUT_PULLUP);
+  pinMode(WIRE_OUT_PIN, INPUT);
+  digitalWrite(WIRE_OUT_PIN, 0);
+
+  if (! lis.begin(0x19)) {   // change this to 0x19 for alternative i2c address
+    Serial.println("Couldnt start");
+    while (1);
   }
+  Serial.println("LIS3DH found!");
+  lis.setDataRate(LIS3DH_DATARATE_1_HZ);
+
+
+  Surface_check();
+  Wire_check();
+  Accelometer_check();
+
+
+
 }
 
 void loop() {
+  //  Serial.print("t:");
+  //  Serial.print(temperature_read());
+  //  Serial.print(", b:");
+  //  Serial.println(battery_read());
+  //  delay(10);
 
-//  Serial.print("t:");
-//  Serial.print(temperature_read());
-//  Serial.print(", b:");
-//  Serial.println(battery_read());
-//  delay(500);
 
-  char* bufPtr = fonaNotificationBuffer;    //handy buffer pointer
+  surface_alarm = Surface_check();
+  wire_alarm = Wire_check();
+  accelo_alarm = Accelometer_check();
 
-  if (fona.available())      //any data available from the FONA?
-  {
-    int slot = 0;            //this will be the slot number of the SMS
-    int charCount = 0;
-    //Read the notification into fonaInBuffer
-    do  {
-      *bufPtr = fona.read();
-      Serial.write(*bufPtr);
-      delay(1);
-    } while ((*bufPtr++ != '\n') && (fona.available()) && (++charCount < (sizeof(fonaNotificationBuffer) - 1)));
 
-    //Add a terminal NULL to the notification string
-    *bufPtr = 0;
-
-    //Scan the notification string for an SMS received notification.
-    //  If it's an SMS message, we'll get the slot number in 'slot'
-    if (1 == sscanf(fonaNotificationBuffer, "+CMTI: " FONA_PREF_SMS_STORAGE ",%d", &slot)) {
-      Serial.print("slot: "); Serial.println(slot);
-
-      char callerIDbuffer[32];  //we'll store the SMS sender number in here
-
-      // Retrieve SMS sender address/phone number.
-      if (! fona.getSMSSender(slot, callerIDbuffer, 31)) {
-        Serial.println("Didn't find SMS message in slot!");
-      }
-      Serial.print(F("FROM: ")); Serial.println(callerIDbuffer);
-
-      // Retrieve SMS value.
-      uint16_t smslen;
-      if (fona.readSMS(slot, smsBuffer, 250, &smslen)) { // pass in buffer and max len!
-        Serial.println(smsBuffer);
-      }
-
-      //Send back an automatic response
-      Serial.println("Sending reponse...");
-      snprintf(smsBuffer, sizeof(smsBuffer), "I'm OK. Status:\nbat: %dmV\ntemp: %d*C\nuptime: 10h", 
-        battery_read(), temperature_read());
-      if (!fona.sendSMS(callerIDbuffer, smsBuffer)) {
-        Serial.println(F("Failed"));
-      } else {
-        Serial.println(F("Sent!"));
-      }
-
-      // delete the original msg after it is processed
-      //   otherwise, we will fill up all the slots
-      //   and then we won't be able to receive SMS anymore
-      if (fona.deleteSMS(slot)) {
-        Serial.println(F("OK!"));
-      } else {
-        Serial.print(F("Couldn't delete SMS in slot ")); Serial.println(slot);
-        fona.print(F("AT+CMGD=?\r\n"));
-      }
-    }
+  if (surface_alarm) {
+    Serial.println("NOT ON SURFACE!!!");
+    delay(10);
   }
+
+  if (wire_alarm) {
+    Serial.println("WIRE CUT!!!");
+    delay(10);
+
+    if(Phone_On()) {
+      Serial.println("GSM OK!");
+      delay(1000);
+
+      Sms_send("22145533", "ALARM: WIRE CUT!!!");
+      
+    } else {
+      Serial.println("Error: Failed to start GSM!");
+    }
+    
+    delay(5000);
+    Phone_Off();
+  }
+
+  if (accelo_alarm) {
+    Serial.println("DEVICE MOVED!!!");
+    delay(10);
+  }
+
+
+
+//  status_time_cnt++;
+//  if(status_time_cnt >= (24 * 3600 / 8)) {
+//    status_time_cnt == 0;
+//
+//    
+//  }
+
+
+
+  if (digitalRead(SURFACE_PIN) == 1)
+    attachInterrupt(0, wakeUp, LOW);
+  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+  detachInterrupt(0);
 }
 
 
-ISR(WDT_vect) {
-
-}

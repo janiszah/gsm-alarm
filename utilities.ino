@@ -4,23 +4,26 @@
 // -----------------------------------------
 int gsm_init(void)
 {
+  fonaSS = SoftwareSerial(FONA_TX, FONA_RX);
+  fonaSerial = &fonaSS;
+  
   fonaSerial->begin(2400);
   if (! fona.begin(*fonaSerial)) {
-//    Serial.println(F("Couldn't find FONA"));
+    //    Serial.println(F("Couldn't find FONA"));
     return 0;
   }
-//  Serial.println(F("FONA is OK"));
+  //  Serial.println(F("FONA is OK"));
 
   // Print SIM card IMEI number.
-//  char imei[16] = {0}; // MUST use a 16 character buffer for IMEI!
-//  uint8_t imeiLen = fona.getIMEI(imei);
-//  if (imeiLen > 0) {
-//    Serial.print("SIM card IMEI: "); Serial.println(imei);
-//  }
+  //  char imei[16] = {0}; // MUST use a 16 character buffer for IMEI!
+  //  uint8_t imeiLen = fona.getIMEI(imei);
+  //  if (imeiLen > 0) {
+  //    Serial.print("SIM card IMEI: "); Serial.println(imei);
+  //  }
 
   fonaSerial->print("AT+CNMI=2,1\r\n");  //set up the FONA to send a +CMTI notification when an SMS is received
 
-//  Serial.println("FONA Ready");
+  //  Serial.println("FONA Ready");
   return 1;
 }
 
@@ -113,7 +116,148 @@ uint16_t battery_read(void)
 
   adc = ADCW;
 
-  v = 1126400 / adc;
+  //v = 1126400 / adc;
+  v = 1105920 / adc;
 
   return v;
 }
+
+
+
+void accelo_read(void)
+{
+  static int x, y, z;
+
+  lis.read();
+
+  int dx = abs(lis.x - x);
+  int dy = abs(lis.y - y);
+  int dz = abs(lis.z - z);
+  x = lis.x;
+  y = lis.y;
+  z = lis.z;
+
+  Serial.print("x:");
+  Serial.print(dx);
+  Serial.print(", y:");
+  Serial.print(dy);
+  Serial.print(", z:");
+  Serial.println(dz);
+
+
+#ifdef DEBUG
+  Serial.print("x:");
+  Serial.print(lis.x);
+  Serial.print(", y:");
+  Serial.print(lis.y);
+  Serial.print(", z:");
+  Serial.println(lis.z);
+#endif
+
+}
+
+
+
+bool Accelometer_check(void)
+{
+  static int x, y, z;
+
+  lis.read();
+
+  int dx = abs(lis.x - x);
+  int dy = abs(lis.y - y);
+  int dz = abs(lis.z - z);
+  x = lis.x;
+  y = lis.y;
+  z = lis.z;
+
+  if (dx > 5000 || dy > 5000 || dz > 5000)
+    return true;
+
+  return false;
+}
+
+bool Surface_check(void)
+{
+  static int surface_state;
+  int new_state = digitalRead(SURFACE_PIN);
+  bool result = false;
+
+  if (surface_state == 1 && new_state == 0) {
+    result = true;
+  }
+
+  surface_state = new_state;
+
+  return result;
+}
+
+bool Wire_check(void) {
+  static int wire_state;
+  int x = 0;
+  bool result = false;
+
+  // check state
+  pinMode(WIRE_OUT_PIN, OUTPUT);
+  x = digitalRead(WIRE_IN_PIN);
+  pinMode(WIRE_OUT_PIN, INPUT);
+
+  if (wire_state != x)
+    result = true;
+
+  wire_state = x;
+
+  return result;
+}
+
+
+bool Battery_check(void) {
+
+}
+
+
+bool Phone_On(void)
+{
+  digitalWrite(FONA_PWR, 1);
+  delay(10);
+  
+  if(gsm_init()) {
+    int i;
+    for(i=0; i<100; i++) {
+
+      uint8_t n = fona.getNetworkStatus();
+
+      if(n == 1)
+        return true;
+
+      delay(500);
+    }
+
+    return false;
+    
+  } else {
+    return false;
+  }
+}
+
+void Phone_Off(void)
+{
+  digitalWrite(FONA_PWR, 0);
+
+  pinMode(FONA_RX, INPUT);
+  pinMode(FONA_TX, INPUT);
+  pinMode(FONA_RST, INPUT);
+}
+
+
+void Sms_send(char* callerId, char* content)
+{
+  if (!fona.sendSMS(callerId, content)) {
+    Serial.println(F("Failed"));
+  } else {
+    Serial.println(F("Sent!"));
+  }
+}
+
+
+
