@@ -124,37 +124,37 @@ uint16_t battery_read(void)
 
 
 
-void accelo_read(void)
-{
-  static int x, y, z;
-
-  lis.read();
-
-  int dx = abs(lis.x - x);
-  int dy = abs(lis.y - y);
-  int dz = abs(lis.z - z);
-  x = lis.x;
-  y = lis.y;
-  z = lis.z;
-
-  Serial.print("x:");
-  Serial.print(dx);
-  Serial.print(", y:");
-  Serial.print(dy);
-  Serial.print(", z:");
-  Serial.println(dz);
-
-
-#ifdef DEBUG
-  Serial.print("x:");
-  Serial.print(lis.x);
-  Serial.print(", y:");
-  Serial.print(lis.y);
-  Serial.print(", z:");
-  Serial.println(lis.z);
-#endif
-
-}
+//void accelo_read(void)
+//{
+//  static int x, y, z;
+//
+//  lis.read();
+//
+//  int dx = abs(lis.x - x);
+//  int dy = abs(lis.y - y);
+//  int dz = abs(lis.z - z);
+//  x = lis.x;
+//  y = lis.y;
+//  z = lis.z;
+//
+//  Serial.print("x:");
+//  Serial.print(dx);
+//  Serial.print(", y:");
+//  Serial.print(dy);
+//  Serial.print(", z:");
+//  Serial.println(dz);
+//
+//
+//#ifdef DEBUG
+//  Serial.print("x:");
+//  Serial.print(lis.x);
+//  Serial.print(", y:");
+//  Serial.print(lis.y);
+//  Serial.print(", z:");
+//  Serial.println(lis.z);
+//#endif
+//
+//}
 
 
 
@@ -164,17 +164,19 @@ bool Accelometer_check(void)
 {
   static int x, y, z;
 
-  lis.read();
-
-  int dx = abs(lis.x - x);
-  int dy = abs(lis.y - y);
-  int dz = abs(lis.z - z);
-  x = lis.x;
-  y = lis.y;
-  z = lis.z;
-
-  if (dx > 5000 || dy > 5000 || dz > 5000)
-    return true;
+  if(accelo_present) {
+    lis.read();
+  
+    int dx = abs(lis.x - x);
+    int dy = abs(lis.y - y);
+    int dz = abs(lis.z - z);
+    x = lis.x;
+    y = lis.y;
+    z = lis.z;
+  
+    if (dx > 5000 || dy > 5000 || dz > 5000)
+      return true;
+  }
 
   return false;
 }

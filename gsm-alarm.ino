@@ -71,6 +71,9 @@ int wire_state;
 long sms_cooldown = 0;
 
 
+bool accelo_present = false;
+
+
 void wakeUp()
 {
   surface_alarm = true;
@@ -98,12 +101,13 @@ void setup() {
   pinMode(WIRE_OUT_PIN, INPUT);
   digitalWrite(WIRE_OUT_PIN, 0);
 
-  if (! lis.begin(0x19)) {   // change this to 0x19 for alternative i2c address
-    Serial.println("Couldnt start");
-    while (1);
+  if (lis.begin(0x19)) {   // change this to 0x19 for alternative i2c address
+    accelo_present = true;
+
+    Serial.println("LIS3DH found!");
+    lis.setDataRate(LIS3DH_DATARATE_1_HZ);
   }
-  Serial.println("LIS3DH found!");
-  lis.setDataRate(LIS3DH_DATARATE_1_HZ);
+
 
 
   Surface_check();
