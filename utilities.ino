@@ -6,7 +6,7 @@ int gsm_init(void)
 {
   fonaSS = SoftwareSerial(FONA_TX, FONA_RX);
   fonaSerial = &fonaSS;
-  
+
   fonaSerial->begin(2400);
   if (! fona.begin(*fonaSerial)) {
     //    Serial.println(F("Couldn't find FONA"));
@@ -220,21 +220,21 @@ bool Phone_On(void)
 {
   digitalWrite(FONA_PWR, 1);
   delay(10);
-  
-  if(gsm_init()) {
+
+  if (gsm_init()) {
     int i;
-    for(i=0; i<100; i++) {
+    for (i = 0; i < 100; i++) {
 
       uint8_t n = fona.getNetworkStatus();
 
-      if(n == 1)
+      if (n == 1)
         return true;
 
       delay(500);
     }
 
     return false;
-    
+
   } else {
     return false;
   }
@@ -259,5 +259,22 @@ void Sms_send(char* callerId, char* content)
   }
 }
 
+
+
+void Phone_sendMessage(char* callerId, char* message)
+{
+  if (Phone_On()) {
+    Serial.println("GSM OK!");
+    delay(1000);
+
+    Sms_send(callerId, message);
+
+  } else {
+    Serial.println("Error: Failed to start GSM!");
+  }
+
+  delay(100);
+  Phone_Off();
+}
 
 

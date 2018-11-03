@@ -1,3 +1,6 @@
+#define ALARM_CALLERID    "22145533"
+
+
 
 // --- Includes ---
 #include <stdint.h>
@@ -55,6 +58,8 @@ bool battery_alarm = false;
 
 
 long status_time_cnt = 0;
+
+long uptime = 0;
 
 
 void wakeUp()
@@ -116,39 +121,37 @@ void loop() {
   if (surface_alarm) {
     Serial.println("NOT ON SURFACE!!!");
     delay(10);
+
+    Phone_sendMessage(ALARM_CALLERID, "NOT ON SURFACE!!!");
   }
 
   if (wire_alarm) {
     Serial.println("WIRE CUT!!!");
     delay(10);
 
-    if(Phone_On()) {
-      Serial.println("GSM OK!");
-      delay(1000);
-
-      Sms_send("22145533", "ALARM: WIRE CUT!!!");
-      
-    } else {
-      Serial.println("Error: Failed to start GSM!");
-    }
-    
-    delay(5000);
-    Phone_Off();
+    Phone_sendMessage(ALARM_CALLERID, "WIRE CUT!!!");
   }
 
   if (accelo_alarm) {
     Serial.println("DEVICE MOVED!!!");
     delay(10);
+
+     Phone_sendMessage(ALARM_CALLERID, "DEVICE MOVED!!!");
   }
 
 
 
-//  status_time_cnt++;
-//  if(status_time_cnt >= (24 * 3600 / 8)) {
-//    status_time_cnt == 0;
-//
-//    
-//  }
+  /* -------
+      Send Status every 24h
+  */
+  status_time_cnt++;
+  if (status_time_cnt >= (24 * 3600 / 8)) {
+    status_time_cnt == 0;
+
+    snprintf(smsBuffer, sizeof(smsBuffer), "I'm OK. Status:\nbat: %dmV\ntemp: %d*C\nuptime: %ldh",
+             battery_read(), temperature_read(), uptime);
+    Phone_sendMessage(ALARM_CALLERID, smsBuffer);
+  }
 
 
 
