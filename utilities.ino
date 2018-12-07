@@ -164,16 +164,16 @@ bool Accelometer_check(void)
 {
   static int x, y, z;
 
-  if(accelo_present) {
+  if (accelo_present) {
     lis.read();
-  
+
     int dx = abs(lis.x - x);
     int dy = abs(lis.y - y);
     int dz = abs(lis.z - z);
     x = lis.x;
     y = lis.y;
     z = lis.z;
-  
+
     if (dx > 5000 || dy > 5000 || dz > 5000)
       return true;
   }
@@ -291,7 +291,7 @@ long Phone_getTime(void)
   Serial.println(s);
 #endif
 
-  long t = h * 3600 + m * 60 + s;
+  long t = (long)h * 3600L + (long)m * 60L + (long)s;
 
   return t;
 }
@@ -301,11 +301,13 @@ long Time_sync(void)
 {
   long t = Phone_getTime();
   long period_cnt = 0;
-  //
-  //  Serial.print(F("Set time: "));
-  //  Serial.println(STATUS_SMS_TIME);
-  //  Serial.print(F("Time: "));
-  //  Serial.println(t);
+
+#ifdef DEBUG
+  Serial.print(F("Set time: "));
+  Serial.println(STATUS_SMS_TIME);
+  Serial.print(F("Time: "));
+  Serial.println(t);
+#endif
 
   if (t < STATUS_SMS_TIME) {
     if ((STATUS_SMS_TIME - t) < 3600) {

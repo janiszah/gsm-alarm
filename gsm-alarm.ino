@@ -1,7 +1,5 @@
 #define ALARM_CALLERID    "22145533"
-#define STATUS_SMS_TIME   ((long)(10L * 3600L + 0 * 60 + 0))
-
-
+#define STATUS_SMS_TIME   ((long)(8L * 3600L + 0 * 60 + 0))
 
 
 //#define DEBUG   1
@@ -18,6 +16,7 @@
 #include "LowPower.h"
 
 //#include <EEPROM.h>
+
 
 
 #include <Wire.h>
@@ -74,6 +73,9 @@ long sms_cooldown = 0;
 bool accelo_present = false;
 
 
+const int cooldown_period = 40;
+
+
 void wakeUp()
 {
   surface_alarm = true;
@@ -110,6 +112,8 @@ void setup() {
 
 
 
+
+
   Surface_check();
   Wire_check();
   Accelometer_check();
@@ -131,6 +135,7 @@ void setup() {
 
 void loop() {
 
+
   surface_alarm |= Surface_check();
   wire_alarm |= Wire_check();
   accelo_alarm = Accelometer_check();
@@ -145,7 +150,7 @@ void loop() {
     if (sms_cooldown == 0) {
       if (Phone_sendMessage(ALARM_CALLERID, "NOT ON SURFACE!!!") == true)
         surface_alarm = false;
-      sms_cooldown = 40;
+      sms_cooldown = cooldown_period;
     }
   }
 
@@ -158,7 +163,7 @@ void loop() {
     if (sms_cooldown == 0) {
       if (Phone_sendMessage(ALARM_CALLERID, "WIRE CUT!!!") == true)
         wire_alarm = 0;
-      sms_cooldown = 40;
+      sms_cooldown = cooldown_period;
     }
   }
 
@@ -170,7 +175,7 @@ void loop() {
 
     if (sms_cooldown == 0) {
       Phone_sendMessage(ALARM_CALLERID, "DEVICE MOVED!!!");
-      sms_cooldown = 40;
+      sms_cooldown = cooldown_period;
     }
   }
 
