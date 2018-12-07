@@ -2,55 +2,62 @@
 #define STATUS_SMS_TIME   ((long)(8L * 3600L + 0 * 60 + 0))
 
 
-//#define DEBUG   1
+#define DEBUG   1
 
 // --- Includes ---
-#include <stdint.h>
-#include <stdbool.h>
-
-#include <avr/wdt.h>
-#include <avr/interrupt.h>
-#include <avr/sleep.h>
-#include <avr/power.h>
-
-#include "LowPower.h"
-
-//#include <EEPROM.h>
-
-
-
+#include <EEPROM.h>
 #include <Wire.h>
 #include <SPI.h>
+#include <SoftwareSerial.h>
+
+#include <LowPower.h>
+#include <M2M_LM75A.h>
+
+
 #include <Adafruit_LIS3DH.h>
 #include <Adafruit_Sensor.h>
-
-Adafruit_LIS3DH lis = Adafruit_LIS3DH();
-
-
-
 #include <Adafruit_FONA.h>
 
+
+Adafruit_LIS3DH lis = Adafruit_LIS3DH();
+M2M_LM75A lm75;
+
+
+// --- FONA ---
 #define FONA_RX   11
 #define FONA_TX   10
 #define FONA_RST  12
 #define FONA_PWR  9
 
 
-//char replybuffer[255];
-//char fonaNotificationBuffer[64];          //for notifications from the FONA
+
+
 char smsBuffer[250];
 
-#include <SoftwareSerial.h>
 SoftwareSerial fonaSS = SoftwareSerial(FONA_TX, FONA_RX);
 SoftwareSerial *fonaSerial = &fonaSS;
 
 Adafruit_FONA fona = Adafruit_FONA(FONA_RST);
 
 
-#define SURFACE_PIN   2
+#define ALARM_PIN         2
+#define SURFACE_PIN       3
 
-#define WIRE_IN_PIN   3
-#define WIRE_OUT_PIN  4
+#define WIRE_IN_PIN       6
+#define WIRE_OUT_PIN      7
+
+#define BAT_LEVEL_EN_PIN  8
+#define BAT_LEEL_PIN      A0
+
+#define GPIO1_PIN         4
+#define GPIO2_PIN         5
+#define ANALOG1_PIN       A1
+#define ANALOG2_PIN       A2
+
+#define BUTTON_PIN        A3
+#define LED_PIN           13
+
+
 
 
 bool accelo_alarm = false;
@@ -79,7 +86,7 @@ const int cooldown_period = 40;
 void wakeUp()
 {
   surface_alarm = true;
-  detachInterrupt(0);
+  detachInterrupt(1);
 }
 
 
@@ -88,7 +95,7 @@ void setup() {
   Serial.println("GSM Alarm");
 
 
-  pinMode(13, OUTPUT);
+  pinMode(LED_PIN, OUTPUT);
 
   pinMode(FONA_PWR, OUTPUT);
   digitalWrite(FONA_PWR, 0);
@@ -103,6 +110,11 @@ void setup() {
   pinMode(WIRE_OUT_PIN, INPUT);
   digitalWrite(WIRE_OUT_PIN, 0);
 
+
+  pinMode(BAT_LEVEL_EN_PIN, OUTPUT);
+  digitalWrite(BAT_LEVEL_EN_PIN, 0);
+  
+
   if (lis.begin(0x19)) {   // change this to 0x19 for alternative i2c address
     accelo_present = true;
 
@@ -111,7 +123,8 @@ void setup() {
   }
 
 
-
+  lm75.begin();
+  lm75.shutdown();
 
 
   Surface_check();
@@ -123,7 +136,7 @@ void setup() {
     Serial.println(F("GSM OK!"));
     delay(1000);
 
-    status_time_cnt = Time_sync();
+    status_time_cnt = 0;//Time_sync();
 
   } else {
     Serial.println(F("Error: Failed to start GSM!"));
@@ -135,6 +148,10 @@ void setup() {
 
 void loop() {
 
+#ifdef DEBUG
+    Serial.println(F("Checking sensors..."));
+    delay(10);
+#endif
 
   surface_alarm |= Surface_check();
   wire_alarm |= Wire_check();
@@ -192,12 +209,34 @@ void loop() {
   if (status_time_cnt <= 0) {
     uptime++;
 
-    snprintf(smsBuffer, sizeof(smsBuffer), "I'm OK!\nBattery: %dmV\nUptime: %ld days\nWire: %s\nSurface: %s",
-             battery_read(), uptime, wire_state == 0 ? "OK" : "Cut", surface_state == 1 ? "On" : "Off");
 
     if (Phone_On()) {
       Serial.println(F("GSM OK!"));
       delay(1000);
+
+// Get Battery voltage
+      uint16_t vbat;
+      if (! fona.getBattVoltage(&vbat)) {
+#ifdef DEBUG
+        Serial.println(F("Failed to read Batt"));
+#endif
+        vbat = battery_read();
+      } 
+#ifdef DEBUG
+      else {
+        Serial.print(F("VBat = ")); Serial.print(vbat); Serial.println(F(" mV"));
+      }
+#endif
+
+
+// Get temperature
+      lm75.wakeup();
+      delay(10);
+      uint16_t temp = lm75.getTemperature();
+      lm75.shutdown();
+
+      snprintf(smsBuffer, sizeof(smsBuffer), "I'm OK!\nBattery: %dmV\nUptime: %ld days\nTemp: %d*C\nWire: %s\nSurface: %s",
+             vbat, uptime, temp, wire_state == 0 ? "OK" : "Cut", surface_state == 1 ? "On" : "Off");
 
       status_time_cnt = Time_sync();
 
@@ -214,9 +253,9 @@ void loop() {
 
 
   if (digitalRead(SURFACE_PIN) == 1)
-    attachInterrupt(0, wakeUp, LOW);
+    attachInterrupt(1, wakeUp, LOW);
   LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  detachInterrupt(0);
+  detachInterrupt(1);
 }
 
 
