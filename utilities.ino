@@ -1,4 +1,3 @@
-
 // -----------------------------------------
 // --- GSM ---
 // -----------------------------------------
@@ -110,10 +109,11 @@ bool Wire_check(void) {
 
   // check state
   pinMode(WIRE_OUT_PIN, OUTPUT);
+  delay(1);
   x = digitalRead(WIRE_IN_PIN);
   pinMode(WIRE_OUT_PIN, INPUT);
 
-  if (wire_state != x)
+  if (wire_state != x && x == 1)
     result = true;
 
   wire_state = x;

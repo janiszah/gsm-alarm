@@ -1,8 +1,8 @@
-#define ALARM_CALLERID    "22145533"
+#define ALARM_CALLERID    "29469161"
 #define STATUS_SMS_TIME   ((long)(8L * 3600L + 0 * 60 + 0))
 
 
-#define DEBUG   1
+//#define DEBUG   1
 
 // --- Includes ---
 #include <EEPROM.h>
@@ -109,6 +109,7 @@ void setup() {
   pinMode(WIRE_IN_PIN, INPUT_PULLUP);
   pinMode(WIRE_OUT_PIN, INPUT);
   digitalWrite(WIRE_OUT_PIN, 0);
+  
 
 
   pinMode(BAT_LEVEL_EN_PIN, OUTPUT);
