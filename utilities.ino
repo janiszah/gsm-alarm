@@ -7,9 +7,16 @@ int gsm_init(void)
   fonaSerial = &fonaSS;
 
   fonaSerial->begin(2400);
-  if (! fona.begin(*fonaSerial)) {
-    //    Serial.println(F("Couldn't find FONA"));
-    return 0;
+
+  int retry = 10;
+  int conn = 0;
+
+  while(retry > 0) {
+    if (fona.begin(*fonaSerial)) {
+      conn = 1;
+      break;
+    }
+    retry--;
   }
   //  Serial.println(F("FONA is OK"));
 
@@ -23,7 +30,7 @@ int gsm_init(void)
   fonaSerial->print("AT+CNMI=2,1\r\n");  //set up the FONA to send a +CMTI notification when an SMS is received
 
   //  Serial.println("FONA Ready");
-  return 1;
+  return conn;
 }
 
 
